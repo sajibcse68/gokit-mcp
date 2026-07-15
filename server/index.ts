@@ -59,7 +59,7 @@ function createMcpServer() {
 
   registerAppResource(
     server,
-    "Politiloggen Dashboard",
+    "Police Dashboard",
     DASHBOARD_URI,
     { description: "Interactive dashboard of Norwegian Police incidents with category filtering and stats." },
     async () => {

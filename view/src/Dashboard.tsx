@@ -53,7 +53,7 @@ export function Dashboard() {
   const hasSelfFetched = useRef(false);
 
   const { app, isConnected, error: connectError } = useApp({
-    appInfo: { name: "Politiloggen Dashboard", version: "1.0.0" },
+    appInfo: { name: "Police Dashboard", version: "1.0.0" },
     capabilities: {},
     onAppCreated: (app) => {
       app.ontoolinput = () => {
@@ -141,7 +141,7 @@ export function Dashboard() {
   return (
     <div className="viz-root">
       <header className="header">
-        <h1>Politiloggen Dashboard</h1>
+        <h1>Police Dashboard</h1>
         <button className="refresh-btn" onClick={() => void refresh()} disabled={!isConnected || loading}>
           {loading ? "Refreshing…" : "Refresh"}
         </button>
