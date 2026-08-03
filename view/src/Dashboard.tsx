@@ -87,6 +87,7 @@ export function Dashboard() {
         return;
       }
       const parsed = extractPayload(result.content);
+      console.log("🚀 ~ Dashboard ~ parsed:", parsed)
       if (parsed) setPayload(parsed);
     } catch (err) {
       setLoading(false);

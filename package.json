@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.company.config.ts",
     "start": "tsx server/index.ts",
     "start:http": "PORT=3001 tsx server/index.ts",
-    "dev": "concurrently -k -n build,server \"vite build --watch\" \"tsx watch server/index.ts\"",
-    "dev:http": "concurrently -k -n build,server \"vite build --watch\" \"PORT=3001 tsx watch server/index.ts\"",
+    "dev": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"tsx watch server/index.ts\"",
+    "dev:http": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"PORT=3001 tsx watch server/index.ts\"",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.view.json"
   },
   "keywords": [],
@@ -27,6 +27,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.4",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",

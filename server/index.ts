@@ -8,11 +8,13 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
 import { fetchIncidents } from "./politiet.js";
-import type { IncidentsPayload } from "../shared/types.js";
+import { fetchCompanyByOrgno } from "./goava.js";
+import type { IncidentsPayload, CompanyShortInfoPayload } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "..", "dist");
 const DASHBOARD_URI = "ui://politiloggen/dashboard.html";
+const COMPANY_URI = "ui://goava/company-short-info.html";
 
 function createMcpServer() {
   const server = new McpServer({ name: "police-dashboard", version: "1.0.0" });
@@ -65,6 +67,49 @@ function createMcpServer() {
     async () => {
       const html = await fs.readFile(path.join(DIST_DIR, "index.html"), "utf-8");
       return { contents: [{ uri: DASHBOARD_URI, mimeType: RESOURCE_MIME_TYPE, text: html }] };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "get_company_by_orgno",
+    {
+      title: "Get Company Info",
+      description: "Fetch short company info (name, description, registration date, website, industry) by organization number and render it in a card.",
+      inputSchema: {
+        orgno: z.string().min(1).describe("The company's organization number, e.g. '5560000000'."),
+      },
+      _meta: { ui: { resourceUri: COMPANY_URI } },
+    },
+    async ({ orgno }) => {
+      try {
+        const { company, source } = await fetchCompanyByOrgno(orgno);
+        const payload: CompanyShortInfoPayload = { company, fetchedAt: new Date().toISOString(), source };
+        const content: Array<{ type: "text"; text: string }> = [{ type: "text", text: JSON.stringify(payload) }];
+        if (source === "mock") {
+          content.unshift({
+            type: "text",
+            text: "NOTE: the Goava API is currently unreachable. The company info below is fabricated demo data, not a real company.",
+          });
+        }
+        return { content };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Failed to fetch company info: ${err instanceof Error ? err.message : String(err)}` }],
+        };
+      }
+    },
+  );
+
+  registerAppResource(
+    server,
+    "Company Short Info",
+    COMPANY_URI,
+    { description: "Short info card for a company looked up by organization number." },
+    async () => {
+      const html = await fs.readFile(path.join(DIST_DIR, "company.html"), "utf-8");
+      return { contents: [{ uri: COMPANY_URI, mimeType: RESOURCE_MIME_TYPE, text: html }] };
     },
   );
 

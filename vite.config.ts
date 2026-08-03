@@ -7,7 +7,9 @@ export default defineConfig({
   plugins: [react(), viteSingleFile()],
   build: {
     outDir: "../dist",
-    emptyOutDir: true,
+    // false so concurrent `vite build --watch` for the company bundle (see
+    // vite.company.config.ts) doesn't get wiped by this one emptying dist/.
+    emptyOutDir: false,
     target: "es2020",
   },
 });

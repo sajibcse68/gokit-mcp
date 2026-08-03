@@ -315,3 +315,100 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+.company-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.company-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.company-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--gridline);
+  flex: none;
+}
+
+.company-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.company-title {
+  font-size: 16px;
+  margin: 0;
+}
+
+.company-fetched-at {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.company-description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.company-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.company-info-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.company-info-label {
+  color: var(--text-secondary);
+}
+
+.company-info-value {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.company-info-value a {
+  color: var(--series-1);
+}
+
+.company-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.company-tag {
+  border: 1px solid var(--border);
+  background: var(--page-plane);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+}
+
+.company-activity {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
