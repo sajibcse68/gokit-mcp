@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build": "vite build && vite build --config vite.company.config.ts",
-    "start": "tsx server/index.ts",
-    "start:http": "PORT=3001 tsx server/index.ts",
-    "dev": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"tsx watch server/index.ts\"",
-    "dev:http": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"PORT=3001 tsx watch server/index.ts\"",
+    "start": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs server/index.ts",
+    "start:http": "PORT=3001 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs server/index.ts",
+    "dev": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
+    "dev:http": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"PORT=3001 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.view.json"
   },
   "keywords": [],
