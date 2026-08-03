@@ -1,4 +1,4 @@
-import type { CompanyShortInfo } from "../shared/types.js";
+import type { CompanyPeoplePayload, CompanyPerson, CompanyShortInfo } from "../shared/types.js";
 
 const GOAVA_API_URL = process.env.GOAVA_API_URL ?? "https://dev-dataapi.goava.com/graphql";
 // TODO: temporary hardcoded token until proper auth wiring exists. Set GOAVA_API_TOKEN in the
@@ -77,8 +77,8 @@ interface RawCompany {
   social?: { www?: Array<{ address?: string | null }> | null } | null;
 }
 
-interface GraphQLResponse {
-  data?: { getCompanyByOrgno?: RawCompany | null };
+interface GraphQLResponse<T> {
+  data?: T;
   errors?: Array<{ message: string }>;
 }
 
@@ -103,7 +103,7 @@ function normalizeCompany(raw: RawCompany): CompanyShortInfo {
 }
 
 /** Generic GraphQL POST, mirroring the webapp's `$axios.post('', { query, variables })` pattern. */
-async function gqlRequest<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+async function gqlRequest<T>(query: string, variables: Record<string, unknown>): Promise<GraphQLResponse<T>> {
   const res = await fetch(GOAVA_API_URL, {
     method: "POST",
     headers: {
@@ -117,22 +117,160 @@ async function gqlRequest<T>(query: string, variables: Record<string, unknown>):
     throw new Error(`Goava API responded ${res.status} ${res.statusText}`);
   }
 
-  const json = (await res.json()) as GraphQLResponse;
+  const json = (await res.json()) as GraphQLResponse<T>;
   if (json.errors?.length) {
-    throw new Error(json.errors.map((e) => e.message).join("; "));
+    throw new Error(json.errors.map((e: { message: string }) => e.message).join("; "));
   }
 
-  return json as T;
+  return json;
 }
 
 /** Falls back to labeled demo data if the Goava API is unreachable or unauthorized. */
 export async function fetchCompanyByOrgno(orgno: string): Promise<FetchCompanyResult> {
   try {
-    const json = await gqlRequest<GraphQLResponse>(GET_COMPANY_BY_ORGNO_QUERY, { orgno });
+    const json = await gqlRequest<{ getCompanyByOrgno?: RawCompany | null }>(GET_COMPANY_BY_ORGNO_QUERY, { orgno });
     const raw = json.data?.getCompanyByOrgno;
     return { company: raw ? normalizeCompany(raw) : null, source: "live" };
   } catch (err) {
     console.error(`Goava API unreachable, falling back to demo data: ${err instanceof Error ? err.message : String(err)}`);
     return { company: { ...MOCK_COMPANY, orgno }, source: "mock" };
+  }
+}
+
+const GET_COMPANY_PEOPLE_QUERY = `
+  query getCompanyByOrgno($orgno: String!) {
+    getCompanyByOrgno(orgno: $orgno) {
+      people {
+        id
+        name
+        designation
+        designation_category
+        data_type
+        has_email
+        phones
+        is_verified
+        source_name
+      }
+    }
+  }
+`;
+
+const GET_CONTACT_EMAIL_QUERY = `
+  query getContactEmail($contact: ContactRequest!) {
+    getContactEmail(contact: $contact) {
+      email
+    }
+  }
+`;
+
+const MAX_REVEAL_LIMIT = 25;
+const DEFAULT_REVEAL_LIMIT = 10;
+
+/** Clearly-labeled fabricated contacts, used only as a fallback when the Goava API can't be reached. */
+const MOCK_PEOPLE: CompanyPerson[] = [
+  {
+    id: -1,
+    name: "Demo Contact",
+    designation: "Head of Demo",
+    designationCategory: "demo",
+    hasEmail: true,
+    email: "demo.contact@example.com",
+    phone: null,
+    isVerified: false,
+    sourceName: "mock",
+  },
+  {
+    id: -2,
+    name: "Another Demo Contact",
+    designation: "Demo Coordinator",
+    designationCategory: "demo",
+    hasEmail: false,
+    email: null,
+    phone: null,
+    isVerified: false,
+    sourceName: "mock",
+  },
+];
+
+interface RawPerson {
+  id: number;
+  name?: string | null;
+  designation?: string | null;
+  designation_category?: string | null;
+  data_type?: string | null;
+  has_email?: boolean | null;
+  phones?: string | null;
+  is_verified?: boolean | null;
+  source_name?: string | null;
+}
+
+function normalizePerson(raw: RawPerson): CompanyPerson {
+  return {
+    id: raw.id,
+    name: raw.name ?? "",
+    designation: raw.designation ?? "",
+    designationCategory: raw.designation_category ?? "",
+    hasEmail: Boolean(raw.has_email),
+    email: null,
+    phone: raw.phones ?? null,
+    isVerified: Boolean(raw.is_verified),
+    sourceName: raw.source_name ?? "",
+  };
+}
+
+/**
+ * Mirrors the webapp's "Contacts with email" tab (CompanyPeopleTab.jsx): the
+ * people list filtered to data_type "people". Real email addresses aren't
+ * included in that list — each one must be separately revealed via
+ * getContactEmail, which appears to consume an account lookup credit (an
+ * empty `email` alongside `has_email: true` came back from a live call
+ * during development; a follow-up getContactEmail call for that same contact
+ * returned the real address). revealLimit bounds how many of those reveal
+ * calls a single tool invocation can make.
+ */
+export async function fetchCompanyPeople(
+  orgno: string,
+  opts: { revealEmails?: boolean; revealLimit?: number } = {},
+): Promise<CompanyPeoplePayload & { source: "live" | "mock" }> {
+  const revealEmails = opts.revealEmails ?? true;
+  const revealLimit = Math.min(Math.max(opts.revealLimit ?? DEFAULT_REVEAL_LIMIT, 0), MAX_REVEAL_LIMIT);
+
+  try {
+    const json = await gqlRequest<{ getCompanyByOrgno?: { people?: RawPerson[] | null } | null }>(
+      GET_COMPANY_PEOPLE_QUERY,
+      { orgno },
+    );
+    const rawPeople = (json.data?.getCompanyByOrgno?.people ?? []).filter((p) => p.data_type === "people");
+    const people = rawPeople.map(normalizePerson).sort((a, b) => Number(b.hasEmail) - Number(a.hasEmail));
+
+    let revealedCount = 0;
+    if (revealEmails) {
+      for (const person of people) {
+        if (revealedCount >= revealLimit) break;
+        if (!person.hasEmail) continue;
+        try {
+          const emailJson = await gqlRequest<{ getContactEmail?: { email?: string | null } | null }>(
+            GET_CONTACT_EMAIL_QUERY,
+            { contact: { id: person.id, designation: person.designation } },
+          );
+          person.email = emailJson.data?.getContactEmail?.email ?? null;
+          revealedCount += 1;
+        } catch (err) {
+          console.error(`Failed to reveal email for contact ${person.id}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    return { orgno, people, totalCount: people.length, revealedCount, fetchedAt: new Date().toISOString(), source: "live" };
+  } catch (err) {
+    console.error(`Goava API unreachable, falling back to demo data: ${err instanceof Error ? err.message : String(err)}`);
+    return {
+      orgno,
+      people: MOCK_PEOPLE,
+      totalCount: MOCK_PEOPLE.length,
+      revealedCount: 0,
+      fetchedAt: new Date().toISOString(),
+      source: "mock",
+    };
   }
 }

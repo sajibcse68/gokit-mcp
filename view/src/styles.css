@@ -423,3 +423,124 @@ body {
 .company-sni-text {
   padding-left: 8px;
 }
+
+/*
+ * Company contacts block — ported from the webapp project's
+ * CompanyPeopleBlock.jsx (section title/layout) and PersonItem.jsx
+ * (individual contact card), dropping the CRM/assignment/checkbox affordances
+ * that don't apply to a read-only display.
+ */
+.company-people-block .company-block {
+  overflow: visible;
+}
+
+.people-section-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.people-section-title-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.people-revealed-count {
+  font-size: 11px;
+  color: var(--clr-gray);
+}
+
+.people-items {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+.people-show-more {
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.people-show-more a {
+  margin-right: 4px;
+  font-size: 14px;
+  color: var(--clr-blue);
+}
+
+.people-show-more a:hover {
+  color: var(--clr-blue-dark);
+}
+
+.person-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.person-item-default {
+  background-color: var(--clr-green-light);
+}
+
+.person-item-linkedin {
+  background-color: var(--clr-linkedin-15);
+}
+
+.person-item-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--fw-600);
+  color: var(--clr-black);
+}
+
+.person-item-badge {
+  font-size: 10px;
+  font-weight: var(--fw-600);
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.person-item-badge-linkedin {
+  color: var(--clr-blue-dark);
+  background: var(--clr-blue-15-solid);
+}
+
+.person-item-badge-verified {
+  color: var(--clr-green-dark);
+  background: var(--clr-green-light);
+}
+
+.person-item-designation {
+  line-height: 16px;
+  font-weight: var(--fw-400);
+  color: var(--clr-black);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.person-item-contact-row {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.person-item-contact {
+  font-size: 12px;
+  color: var(--clr-black);
+}
+
+.person-item-contact-muted {
+  color: var(--clr-gray);
+}

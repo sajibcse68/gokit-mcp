@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "vite build && vite build --config vite.company.config.ts",
+    "build": "vite build && vite build --config vite.company.config.ts && vite build --config vite.people.config.ts",
     "start": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs server/index.ts",
     "start:http": "PORT=3001 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs server/index.ts",
-    "dev": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
-    "dev:http": "concurrently -k -n build,build-company,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"PORT=3001 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
+    "dev": "concurrently -k -n build,build-company,build-people,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"vite build --watch --config vite.people.config.ts\" \"node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
+    "dev:http": "concurrently -k -n build,build-company,build-people,server \"vite build --watch\" \"vite build --watch --config vite.company.config.ts\" \"vite build --watch --config vite.people.config.ts\" \"PORT=3001 node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs watch server/index.ts\"",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.view.json"
   },
   "keywords": [],

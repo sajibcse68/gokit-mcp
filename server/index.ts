@@ -8,13 +8,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { registerAppTool, registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { z } from "zod";
 import { fetchIncidents } from "./politiet.js";
-import { fetchCompanyByOrgno } from "./goava.js";
-import type { IncidentsPayload, CompanyShortInfoPayload } from "../shared/types.js";
+import { fetchCompanyByOrgno, fetchCompanyPeople } from "./goava.js";
+import type { IncidentsPayload, CompanyShortInfoPayload, CompanyPeoplePayload } from "../shared/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "..", "dist");
 const DASHBOARD_URI = "ui://politiloggen/dashboard.html";
 const COMPANY_URI = "ui://goava/company-short-info.html";
+const PEOPLE_URI = "ui://goava/company-people.html";
 
 function createMcpServer() {
   const server = new McpServer({ name: "police-dashboard", version: "1.0.0" });
@@ -110,6 +111,60 @@ function createMcpServer() {
     async () => {
       const html = await fs.readFile(path.join(DIST_DIR, "company.html"), "utf-8");
       return { contents: [{ uri: COMPANY_URI, mimeType: RESOURCE_MIME_TYPE, text: html }] };
+    },
+  );
+
+  registerAppTool(
+    server,
+    "get_company_people",
+    {
+      title: "Get Company Contacts",
+      description:
+        "Fetch a company's contacts (the 'Contacts with email' group) by organization number and render them in a list. " +
+        "Real email addresses aren't included by default in the upstream data — revealing one costs an account lookup " +
+        "credit per contact, so this is capped per call via revealLimit.",
+      inputSchema: {
+        orgno: z.string().min(1).describe("The company's organization number, e.g. '5560000000'."),
+        revealEmails: z.boolean().optional().describe("Reveal real email addresses for contacts that have one on file. Default: true."),
+        revealLimit: z
+          .number()
+          .int()
+          .min(0)
+          .max(25)
+          .optional()
+          .describe("Max number of emails to reveal in this call, since each reveal costs a lookup credit (default 10, max 25)."),
+      },
+      _meta: { ui: { resourceUri: PEOPLE_URI } },
+    },
+    async ({ orgno, revealEmails, revealLimit }) => {
+      try {
+        const result = await fetchCompanyPeople(orgno, { revealEmails, revealLimit });
+        const payload: CompanyPeoplePayload = result;
+        const content: Array<{ type: "text"; text: string }> = [{ type: "text", text: JSON.stringify(payload) }];
+        if (result.source === "mock") {
+          content.unshift({
+            type: "text",
+            text: "NOTE: the Goava API is currently unreachable. The contacts below are fabricated demo data, not real people.",
+          });
+        }
+        return { content };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Failed to fetch company contacts: ${err instanceof Error ? err.message : String(err)}` }],
+        };
+      }
+    },
+  );
+
+  registerAppResource(
+    server,
+    "Company Contacts",
+    PEOPLE_URI,
+    { description: "List of a company's contacts, with email reveal, looked up by organization number." },
+    async () => {
+      const html = await fs.readFile(path.join(DIST_DIR, "people.html"), "utf-8");
+      return { contents: [{ uri: PEOPLE_URI, mimeType: RESOURCE_MIME_TYPE, text: html }] };
     },
   );
 
