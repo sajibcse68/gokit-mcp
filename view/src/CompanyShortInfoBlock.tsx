@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type SyntheticEvent } from "react";
 import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
 import type { CompanyShortInfo, CompanyShortInfoPayload } from "../../shared/types";
 
@@ -122,66 +122,114 @@ export function CompanyShortInfoBlock() {
   );
 }
 
+/**
+ * Mirrors CompanyShortInfoBlock.jsx from the webapp project: a big image is shown
+ * above the text unless it's narrower than half the card and taller than wide, in
+ * which case it's shown small, inline with the title/description instead.
+ */
 function CompanyCard({ company, fetchedAt }: { company: CompanyShortInfo; fetchedAt?: string }) {
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [useBigImage, setUseBigImage] = useState(true);
+  const blockRef = useRef<HTMLDivElement>(null);
+
+  const handleImageLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const blockEl = blockRef.current;
+    if (!blockEl) return;
+    setIsImageLoaded(true);
+    setUseBigImage(img.width > blockEl.offsetWidth / 2 && img.width > img.height);
+  }, []);
+
   const registrationDate = formatRegistrationDate(company.registrationDate);
+  const orgnoLabel = company.countryCode === "FI" ? "Business ID" : company.countryCode === "DK" ? "CVR number" : "Org. number";
+  const hasPrimaryLineOfBusiness = company.primaryLineOfBusinessText.length > 0;
+  const hasNaceCategories = company.naceCategories.length > 0;
 
   return (
-    <article className="company-card">
-      <div className="company-card-top">
-        {company.imageUrl && <img className="company-avatar" src={company.imageUrl} alt="" />}
-        <div className="company-heading">
-          <h2 className="company-title">{company.title || company.name || "Unknown company"}</h2>
-          {fetchedAt && <span className="company-fetched-at">Last updated {formatTime(fetchedAt)}</span>}
-        </div>
-      </div>
-
-      {company.description && <p className="company-description">{company.description}</p>}
-
-      <div className="company-info-grid">
-        <div className="company-info-row">
-          <span className="company-info-label">Org. number</span>
-          <span className="company-info-value">{formatOrgno(company.orgno, company.countryCode)}</span>
-        </div>
-
-        {registrationDate && (
-          <div className="company-info-row">
-            <span className="company-info-label">Registered</span>
-            <span className="company-info-value">{registrationDate}</span>
-          </div>
-        )}
-
-        <div className="company-info-row">
-          <span className="company-info-label">Website</span>
-          <span className="company-info-value">
-            {company.website ? (
-              <a href={company.website} target="_blank" rel="noreferrer">
-                {company.website}
-              </a>
-            ) : (
-              "—"
+    <div className="company-block-wrapper" ref={blockRef}>
+      <div className="company-block">
+        <div className="company-block-header">Company short info</div>
+        <div className="company-block-content">
+          <div className="company-img-and-description">
+            {useBigImage && isImageLoaded && company.imageUrl && (
+              <div className="company-img-wrap">
+                <img style={{ maxWidth: "100%", maxHeight: "450px" }} src={company.imageUrl} alt="" />
+              </div>
             )}
-          </span>
-        </div>
 
-        {company.primaryLineOfBusinessText && (
-          <div className="company-info-row">
-            <span className="company-info-label">Line of business</span>
-            <span className="company-info-value">{company.primaryLineOfBusinessText}</span>
+            <div className="company-description-wrap">
+              {!useBigImage && company.imageUrl && <img className="company-small-image" src={company.imageUrl} alt="" />}
+              <div className="company-field-description">
+                {(company.title || company.name) && (
+                  <div className="company-field company-field-title">{company.title || company.name}</div>
+                )}
+                {company.description && <p className="company-field">{company.description}</p>}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {company.naceCategories.length > 0 && (
-        <div className="company-tags" aria-label="Industry categories">
-          {company.naceCategories.map((c) => (
-            <span className="company-tag" key={c.sniCode} title={c.sniText}>
-              {c.sniCode} · {c.sniText}
-            </span>
-          ))}
+          <div className="company-info">
+            <div className="company-info__item">
+              <strong className="company-info__item--left">{orgnoLabel}</strong>
+              <div className="company-info__item--right">{formatOrgno(company.orgno, company.countryCode)}</div>
+            </div>
+
+            {registrationDate && (
+              <div className="company-info__item">
+                <strong className="company-info__item--left">Registration date</strong>
+                <div className="company-info__item--right">{registrationDate}</div>
+              </div>
+            )}
+
+            <div className="company-info__item">
+              <strong className="company-info__item--left">Website</strong>
+              <div className="company-info__item--right">
+                {company.website ? (
+                  <a href={company.website} target="_blank" rel="noreferrer">
+                    {company.website}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </div>
+            </div>
+
+            {hasNaceCategories && (
+              <div className="company-info__item">
+                <strong className="company-info__item--left">Industry</strong>
+                <div className="company-info__item--right">
+                  {company.naceCategories.map((c) => (
+                    <div key={c.sniCode}>
+                      <span className="company-sni-code">{c.sniCode}</span>
+                      <span className="company-sni-text">{c.sniText}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hasPrimaryLineOfBusiness && (
+              <div className="company-info__item">
+                <strong className="company-info__item--left">Line of business</strong>
+                <div className="company-info__item--right">{company.primaryLineOfBusinessText}</div>
+              </div>
+            )}
+
+            {company.activityText && (
+              <div className="company-info__item">
+                <strong className="company-info__item--left">Activity</strong>
+                <div className="company-info__item--right">{company.activityText}</div>
+              </div>
+            )}
+          </div>
+
+          {fetchedAt && <span className="company-fetched-at">Last updated {formatTime(fetchedAt)}</span>}
+
+          {company.imageUrl && (
+            <img src={company.imageUrl} onLoad={handleImageLoad} alt="" style={{ display: "none" }} />
+          )}
         </div>
-      )}
-
-      {company.activityText && <p className="company-activity">{company.activityText}</p>}
-    </article>
+      </div>
+    </div>
   );
 }

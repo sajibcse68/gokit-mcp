@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { CompanyShortInfoBlock } from "./CompanyShortInfoBlock";
+import "./variables.css";
 import "./styles.css";
 
 const container = document.getElementById("root");

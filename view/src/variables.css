@@ -1,0 +1,86 @@
+/**
+ * Color/spacing/typography tokens, ported from the webapp project's
+ * src/assets/styles/abstracts/_variables.scss (the ":root" custom-property
+ * block — its "NEW FORMAT" section). Kept as plain CSS custom properties
+ * since this app has no Sass build step.
+ */
+:root {
+  --clr-white: #ffffff;
+  --clr-white2: #fefefe;
+
+  --clr-green: #0fa894;
+  --clr-green-15: #0fa89426;
+  --clr-green2: #57c2b4;
+  --clr-green3: #8dd5cc;
+  --clr-green-dark: #0a6e61;
+  --clr-green-light: #dbf2ef;
+
+  --clr-black: #212121;
+  --clr-black-05: #2121210d;
+  --clr-black-10: #2121211a;
+  --clr-black-50: #21212180;
+
+  --clr-red: #e32445;
+  --clr-red1: #ef5a7c;
+  --clr-red2: #fce0e6;
+  --clr-red3: #ea2e59;
+  --clr-red4: #fdb5c2;
+  --clr-red-15: #fbdee3;
+  --clr-red-dark: #be1831;
+  --clr-red-15-opaque: #e3244526;
+
+  --clr-gray: #6c6c6c;
+  --clr-gray-10: #e9e9e9;
+  --clr-gray-5: #f4f4f4;
+  --clr-gray-lighter: #7a6565;
+  --clr-gray-light3: #e0e0e0;
+  --clr-gray-midtone: #909090;
+  --clr-gray-placeholder: #aaaaaa;
+  --clr-gray-disabled: #b3b3b3;
+
+  --clr-yellow: #ffb300;
+  --clr-yellow-15: #fff4d9;
+  --clr-yellow-15-opaque: #ffb30026;
+  --clr-yellow-dark: #e6a100;
+  --clr-yellow-darker: #e68100;
+  --clr-yellow-light: #ffca4d;
+
+  --clr-blue: #2962ff;
+  --clr-blue-dark: #0039cb;
+  --clr-blue-15: #2962ff26;
+  --clr-blue-15-solid: #dfe7ff;
+  --clr-blue-50-solid: #94b0ff;
+  --clr-linkedin-15: #2867b226;
+
+  --clr-violet: #7969bf;
+  --clr-violet-light: #ebe9f5;
+  --clr-violet-15: #7969bf26;
+  --clr-violet-dark: #615499;
+
+  /* SPACING */
+  --base-unit: 10px;
+  --space-8: calc(var(--base-unit) * 0.8);
+  --space-12: calc(var(--base-unit) * 1.2);
+  --space-16: calc(var(--base-unit) * 1.6);
+  --space-20: calc(var(--base-unit) * 2);
+  --space-21: calc(var(--base-unit) * 2.1);
+  --space-24: calc(var(--base-unit) * 2.4);
+  --space-28: calc(var(--base-unit) * 2.8);
+  --space-36: calc(var(--base-unit) * 3.6);
+
+  /* TYPOGRAPHY */
+  --text-12: calc(var(--base-unit) * 1.2);
+  --text-13: calc(var(--base-unit) * 1.3);
+  --text-14: calc(var(--base-unit) * 1.4);
+  --text-16: calc(var(--base-unit) * 1.6);
+  --text-18: calc(var(--base-unit) * 1.8);
+  --text-20: calc(var(--base-unit) * 2);
+  --text-24: calc(var(--base-unit) * 2.4);
+  --text-28: calc(var(--base-unit) * 2.8);
+
+  /* FONT WEIGHT */
+  --fw-400: 400;
+  --fw-500: 500;
+  --fw-600: 600;
+  --fw-700: 700;
+}
