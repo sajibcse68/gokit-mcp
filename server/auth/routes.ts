@@ -10,6 +10,7 @@ import {
   TEST_LOGIN_PASSWORD,
   isFirebaseMode,
 } from "./config.js";
+import { refreshIfNeeded } from "./context.js";
 import { readIdTokenExpiry, verifyFirebaseIdToken } from "./firebase.js";
 import { verifyPkceS256 } from "./pkce.js";
 import { store, type AuthCodeRecord, type Session, type UserClaims } from "./store.js";
@@ -247,16 +248,45 @@ async function handleCallback(req: IncomingMessage, res: ServerResponse): Promis
 
     try {
       const identity = await verifyFirebaseIdToken(idToken);
+
+      // account_id: prefer the verified `client_id` claim, fall back to the value
+      // the login page posts. The webapp reads it from the Goava user record
+      // (`user.account.id` in redux/preloadState.js doMcpCallback) and many
+      // Firebase tokens carry no account claim at all, so without this fallback
+      // account_id would be empty for most real sign-ins.
+      //
+      // The fallback is client-supplied and therefore NOT verified. goava-mcp
+      // re-checks it against app_account_user over MySQL on every request; that
+      // check is unavailable here (see CLAUDE.md §7), so it is logged instead of
+      // silently trusted.
+      const bodyAccountId = str(body.account_id);
+      const accountId = identity.accountId || bodyAccountId;
+      if (!identity.accountId && bodyAccountId) {
+        log(
+          `callback: account_id=${bodyAccountId} taken from the request body (unverified) — ` +
+            `the Firebase token for goava_user_id=${identity.goavaUserId} carries no client_id claim`,
+        );
+      }
+
       claims = {
         userId: identity.goavaUserId,
-        accountId: identity.accountId,
-        email: identity.email,
+        accountId,
+        email: identity.email || str(body.email),
         name: identity.name,
         language: identity.language,
         userMarkets: identity.userMarkets,
       };
       idTokenExpiresAt = identity.expiresAt || readIdTokenExpiry(idToken);
-      log(`callback: firebase verified uid=${identity.uid} goava_user_id=${identity.goavaUserId} email=${identity.email}`);
+      log(
+        `callback: firebase verified uid=${identity.uid} goava_user_id=${identity.goavaUserId} ` +
+          `account_id=${accountId} email=${claims.email} refresh_token=${refreshToken ? "present" : "ABSENT"}`,
+      );
+      if (!refreshToken) {
+        log(
+          "callback: WARNING no firebase_refresh_token supplied — this session will stop working " +
+            "when the ID token expires (1 hour) and the user will have to sign in again.",
+        );
+      }
     } catch (err) {
       log(`callback: REJECTED firebase verification failed: ${err instanceof Error ? err.message : String(err)}`);
       sendJson(res, 401, { error: "invalid_firebase_token" });
@@ -431,6 +461,19 @@ export async function authenticateRequest(req: IncomingMessage, res: ServerRespo
     // the bearer token itself is still cryptographically valid.
     log(`401 no-session: sid=${head(claims.sessionId)} user_id=${claims.userId}`);
     sendUnauthorized(res, "session expired, please re-authorize");
+    return null;
+  }
+
+  // Renew the Goava credential before any tool runs. If it has expired and
+  // can't be renewed, fail with a 401 rather than letting the request proceed:
+  // a dead token makes every GraphQL call 401, and the fetchers in goava.ts
+  // answer a failed call with mock data — so without this the user would be
+  // served fabricated companies instead of being told to sign in again.
+  // The 401 also carries WWW-Authenticate, so a client like claude.ai restarts
+  // the OAuth flow by itself.
+  if (!(await refreshIfNeeded(session))) {
+    log(`401 stale-credential: user_id=${session.userId} — Goava credential expired and not renewable`);
+    sendUnauthorized(res, "your Goava session expired, please sign in again");
     return null;
   }
 

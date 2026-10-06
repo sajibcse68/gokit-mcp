@@ -14,7 +14,10 @@ export const MCP_SERVER_URL = process.env.MCP_SERVER_URL ?? "http://localhost:30
 export const FRONTEND_LOGIN_URL = process.env.FRONTEND_LOGIN_URL ?? `${MCP_SERVER_URL}/test-login`;
 
 /** Origins allowed to POST to /oauth/callback. */
-export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "https://dev-discover.goava.com,https://claude.ai")
+export const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ??
+  "https://discover.goava.com,https://staging-discover.goava.com,https://dev-discover.goava.com,https://claude.ai"
+)
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
@@ -46,6 +49,13 @@ export const FIREBASE_AUTH_DOMAIN = process.env.FIREBASE_AUTH_DOMAIN ?? "";
 export const AUTH_CODE_TTL_SECONDS = 300; // 5 minutes
 export const BEARER_TOKEN_TTL_SECONDS = 8 * 3600; // 8 hours
 export const REFRESH_TOKEN_TTL_SECONDS = 90 * 24 * 3600; // 90 days
+
+/**
+ * Renew the Firebase ID token once it is within this many seconds of expiring.
+ * Firebase ID tokens live 1 hour, so the default renews at roughly the 50-minute
+ * mark on first use after that point. Raising it renews earlier and more often.
+ */
+export const REFRESH_SKEW_SECONDS = Number(process.env.FIREBASE_REFRESH_SKEW_SECONDS ?? 600);
 
 /** True when Firebase ID tokens are verified; false means direct (dev) mode. */
 export const isFirebaseMode = (): boolean => Boolean(FIREBASE_PROJECT_ID);

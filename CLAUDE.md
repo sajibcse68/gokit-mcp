@@ -172,8 +172,18 @@ just the claims:
 3. `authenticateRequest` resolves `sid` → `Session` and `runWithSession` binds it for the request.
 4. `gqlRequest` in `server/goava.ts` calls `currentGoavaToken()` to get that user's own token.
 
-Firebase ID tokens last 1 hour but our bearer tokens last 8, so `currentGoavaToken()` transparently
-refreshes via the Firebase refresh token (needs `FIREBASE_API_KEY`) 120s before expiry.
+Firebase ID tokens last 1 hour but our bearer tokens last 8, so `refreshIfNeeded()` renews the
+credential once it is within `FIREBASE_REFRESH_SKEW_SECONDS` (default 600) of expiry. Renewal is
+lazy — on use, not on a timer — so it costs nothing while idle and survives idle gaps longer than
+the token lifetime. It needs `FIREBASE_API_KEY` **and** a Firebase refresh token captured at login.
+
+`authenticateRequest` calls `refreshIfNeeded` before any tool runs and returns 401 if the credential
+is dead and unrenewable. That matters: a dead token makes every GraphQL call 401, and the fetchers in
+`goava.ts` answer a failed call with **mock data** — so without the check the user would be served
+fabricated companies instead of being told to sign in again.
+
+**The login page must POST `firebase_refresh_token`.** Without it a session stops working after an
+hour. `webapp/src/redux/preloadState.js` → `doMcpCallback` does not currently send one (see §12).
 
 **Two traps worth keeping in mind if you touch this:**
 
@@ -411,3 +421,42 @@ Match `server/goava.ts` and `server/index.ts`, which are the house style:
 - No new runtime dependencies without asking. The server side currently needs only
   `@modelcontextprotocol/sdk`, `@modelcontextprotocol/ext-apps` and `zod`; `fetch` is built in.
   OAuth will need a JWT library — propose one before installing.
+
+---
+
+## 12. Outstanding: the `discover.goava.com` login handoff
+
+The webapp **already implements** the MCP handoff — `src/redux/preloadState.js` → `doMcpCallback`,
+triggered by `isMcpFlow()` (`utils/common.js`, true when `mcp_callback` is in the query string).
+`screens/Auth/SignIn.jsx` shows a "Connecting to Claude" spinner while it runs. It POSTs:
+
+```json
+{ "firebase_id_token": "...", "account_id": 2,
+  "client_id": "...", "redirect_uri": "...", "code_challenge": "...", "state": "..." }
+```
+
+`account_id` comes from the Goava user record (`user.account.id`), not from the token claims — this
+server accepts it as a fallback and logs that it is unverified.
+
+**One change is still needed, and it is in `webapp`, which is read-only here (rule 2).** `doMcpCallback`
+sends no Firebase refresh token, so a session cannot outlive the ID token's 1-hour lifetime. Propose
+this one-line addition rather than making it:
+
+```js
+body: JSON.stringify({
+  firebase_id_token: firebaseIdToken,
+  firebase_refresh_token: firebaseUser.refreshToken,   // ← add
+  account_id: accountId,
+  ...
+```
+
+This server already accepts, stores and uses that field — nothing else changes.
+
+**Weigh the tradeoff before doing it.** A Firebase refresh token is a long-lived credential that can
+mint ID tokens until it is revoked, so handing it to the MCP server is a real escalation over a
+1-hour ID token. The alternatives are a Firebase service account minting custom tokens (needs
+`firebase-admin` plus a private key — what `goava-mcp` is set up for) or accepting hourly re-login.
+
+`goava-mcp` has no equivalent of this problem: its tools reach AWS with IAM credentials, so its JWT
+never needs to carry a Goava API credential at all. Its `refresh_token` handling is its **own** OAuth
+refresh token, not a Firebase one — don't mistake one for the other when reading `server_v2.py`.
