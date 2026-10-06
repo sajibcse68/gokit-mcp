@@ -63,10 +63,8 @@ export interface CompanyPerson {
   name: string;
   designation: string;
   designationCategory: string;
-  /** True if an email is on file upstream — the address itself must be separately revealed (costs a lookup credit). */
+  /** True if an email is on file upstream — the address itself must be separately revealed via get_contact_email. */
   hasEmail: boolean;
-  /** Populated only for entries revealed via the email-reveal step; null otherwise. */
-  email: string | null;
   phone: string | null;
   isVerified: boolean;
   sourceName: string;
@@ -76,8 +74,6 @@ export interface CompanyPeoplePayload {
   orgno: string;
   people: CompanyPerson[];
   totalCount: number;
-  /** How many of `people` had their email revealed (consumed a lookup credit) in this call. */
-  revealedCount: number;
   fetchedAt: string;
   /** "mock" means the Goava API was unreachable and this is fabricated demo data, not real contacts. */
   source: "live" | "mock";
@@ -85,8 +81,17 @@ export interface CompanyPeoplePayload {
 
 export interface GetCompanyPeopleArgs {
   orgno: string;
-  /** Reveal real email addresses for contacts flagged as having one. Each reveal consumes an account lookup credit. Default: true. */
-  revealEmails?: boolean;
-  /** Max number of emails to reveal in one call (safety cap on credit usage). Default: 10, max: 25. */
-  revealLimit?: number;
+}
+
+export interface ContactEmailPayload {
+  id: number;
+  email: string | null;
+  fetchedAt: string;
+  /** "mock" means the Goava API was unreachable and this is a fabricated demo address, not a real one. */
+  source: "live" | "mock";
+}
+
+export interface GetContactEmailArgs {
+  id: number;
+  designation: string;
 }
