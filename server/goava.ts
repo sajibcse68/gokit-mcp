@@ -1,8 +1,12 @@
+import { currentGoavaToken } from "./auth/context.js";
 import type { CompanyPeoplePayload, CompanyPerson, CompanyShortInfo } from "../shared/types.js";
 
 const GOAVA_API_URL = process.env.GOAVA_API_URL ?? "https://dev-dataapi.goava.com/graphql";
-// TODO: temporary hardcoded token until proper auth wiring exists. Set GOAVA_API_TOKEN in the
-// environment (e.g. a local .env, which is gitignored) rather than committing a real value here.
+/**
+ * Fallback API token, used only when there is no authenticated session — i.e.
+ * stdio mode, or HTTP mode with auth disabled. The normal path is the signed-in
+ * user's own Firebase ID token, supplied per request by the OAuth session.
+ */
 const GOAVA_API_TOKEN = process.env.GOAVA_API_TOKEN ?? "";
 
 const GET_COMPANY_BY_ORGNO_QUERY = `
@@ -102,13 +106,21 @@ function normalizeCompany(raw: RawCompany): CompanyShortInfo {
   };
 }
 
-/** Generic GraphQL POST, mirroring the webapp's `$axios.post('', { query, variables })` pattern. */
+/**
+ * Generic GraphQL POST, mirroring the webapp's `$axios.post('', { query, variables })` pattern.
+ *
+ * The header is the raw token with no `Bearer ` prefix — that is how the webapp
+ * sends it (`$axios.defaults.headers.common['authorization'] = idToken` in
+ * services/api/axios.js), and the API rejects the prefixed form.
+ */
 async function gqlRequest<T>(query: string, variables: Record<string, unknown>): Promise<GraphQLResponse<T>> {
+  const token = (await currentGoavaToken()) ?? GOAVA_API_TOKEN;
+
   const res = await fetch(GOAVA_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(GOAVA_API_TOKEN ? { Authorization: GOAVA_API_TOKEN } : {}),
+      ...(token ? { Authorization: token } : {}),
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -163,9 +175,6 @@ const GET_CONTACT_EMAIL_QUERY = `
   }
 `;
 
-const MAX_REVEAL_LIMIT = 25;
-const DEFAULT_REVEAL_LIMIT = 10;
-
 /** Clearly-labeled fabricated contacts, used only as a fallback when the Goava API can't be reached. */
 const MOCK_PEOPLE: CompanyPerson[] = [
   {
@@ -174,7 +183,6 @@ const MOCK_PEOPLE: CompanyPerson[] = [
     designation: "Head of Demo",
     designationCategory: "demo",
     hasEmail: true,
-    email: "demo.contact@example.com",
     phone: null,
     isVerified: false,
     sourceName: "mock",
@@ -185,7 +193,6 @@ const MOCK_PEOPLE: CompanyPerson[] = [
     designation: "Demo Coordinator",
     designationCategory: "demo",
     hasEmail: false,
-    email: null,
     phone: null,
     isVerified: false,
     sourceName: "mock",
@@ -211,7 +218,6 @@ function normalizePerson(raw: RawPerson): CompanyPerson {
     designation: raw.designation ?? "",
     designationCategory: raw.designation_category ?? "",
     hasEmail: Boolean(raw.has_email),
-    email: null,
     phone: raw.phones ?? null,
     isVerified: Boolean(raw.is_verified),
     sourceName: raw.source_name ?? "",
@@ -221,20 +227,10 @@ function normalizePerson(raw: RawPerson): CompanyPerson {
 /**
  * Mirrors the webapp's "Contacts with email" tab (CompanyPeopleTab.jsx): the
  * people list filtered to data_type "people". Real email addresses aren't
- * included in that list — each one must be separately revealed via
- * getContactEmail, which appears to consume an account lookup credit (an
- * empty `email` alongside `has_email: true` came back from a live call
- * during development; a follow-up getContactEmail call for that same contact
- * returned the real address). revealLimit bounds how many of those reveal
- * calls a single tool invocation can make.
+ * included in this list — each one must be separately revealed via
+ * fetchContactEmail, mirroring PersonItem.jsx's click-to-reveal email icon.
  */
-export async function fetchCompanyPeople(
-  orgno: string,
-  opts: { revealEmails?: boolean; revealLimit?: number } = {},
-): Promise<CompanyPeoplePayload & { source: "live" | "mock" }> {
-  const revealEmails = opts.revealEmails ?? true;
-  const revealLimit = Math.min(Math.max(opts.revealLimit ?? DEFAULT_REVEAL_LIMIT, 0), MAX_REVEAL_LIMIT);
-
+export async function fetchCompanyPeople(orgno: string): Promise<CompanyPeoplePayload> {
   try {
     const json = await gqlRequest<{ getCompanyByOrgno?: { people?: RawPerson[] | null } | null }>(
       GET_COMPANY_PEOPLE_QUERY,
@@ -243,34 +239,31 @@ export async function fetchCompanyPeople(
     const rawPeople = (json.data?.getCompanyByOrgno?.people ?? []).filter((p) => p.data_type === "people");
     const people = rawPeople.map(normalizePerson).sort((a, b) => Number(b.hasEmail) - Number(a.hasEmail));
 
-    let revealedCount = 0;
-    if (revealEmails) {
-      for (const person of people) {
-        if (revealedCount >= revealLimit) break;
-        if (!person.hasEmail) continue;
-        try {
-          const emailJson = await gqlRequest<{ getContactEmail?: { email?: string | null } | null }>(
-            GET_CONTACT_EMAIL_QUERY,
-            { contact: { id: person.id, designation: person.designation } },
-          );
-          person.email = emailJson.data?.getContactEmail?.email ?? null;
-          revealedCount += 1;
-        } catch (err) {
-          console.error(`Failed to reveal email for contact ${person.id}: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-    }
-
-    return { orgno, people, totalCount: people.length, revealedCount, fetchedAt: new Date().toISOString(), source: "live" };
+    return { orgno, people, totalCount: people.length, fetchedAt: new Date().toISOString(), source: "live" };
   } catch (err) {
     console.error(`Goava API unreachable, falling back to demo data: ${err instanceof Error ? err.message : String(err)}`);
-    return {
-      orgno,
-      people: MOCK_PEOPLE,
-      totalCount: MOCK_PEOPLE.length,
-      revealedCount: 0,
-      fetchedAt: new Date().toISOString(),
-      source: "mock",
-    };
+    return { orgno, people: MOCK_PEOPLE, totalCount: MOCK_PEOPLE.length, fetchedAt: new Date().toISOString(), source: "mock" };
+  }
+}
+
+export interface FetchContactEmailResult {
+  email: string | null;
+  source: "live" | "mock";
+}
+
+/**
+ * Mirrors PersonItem.jsx's handleEmailIconClick -> getContactEmail: reveals
+ * one contact's real email address on demand, given the {id, designation}
+ * pair the webapp sends.
+ */
+export async function fetchContactEmail(id: number, designation: string): Promise<FetchContactEmailResult> {
+  try {
+    const json = await gqlRequest<{ getContactEmail?: { email?: string | null } | null }>(GET_CONTACT_EMAIL_QUERY, {
+      contact: { id, designation },
+    });
+    return { email: json.data?.getContactEmail?.email ?? null, source: "live" };
+  } catch (err) {
+    console.error(`Goava API unreachable, falling back to demo data: ${err instanceof Error ? err.message : String(err)}`);
+    return { email: "demo.contact@example.com", source: "mock" };
   }
 }

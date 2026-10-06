@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import { useApp, useHostStyles } from "@modelcontextprotocol/ext-apps/react";
-import type { CompanyPeoplePayload, CompanyPerson } from "../../shared/types";
+import { useApp, useHostStyles, type App } from "@modelcontextprotocol/ext-apps/react";
+import type { CompanyPeoplePayload, CompanyPerson, ContactEmailPayload } from "../../shared/types";
 
 const SHOW_MORE_COUNT = 8;
 
-function extractPayload(content: unknown): CompanyPeoplePayload | null {
+function extractPayload<T>(content: unknown): T | null {
   if (!Array.isArray(content)) return null;
   const textItem = content.find(
     (item): item is { type: "text"; text: string } =>
@@ -12,7 +12,7 @@ function extractPayload(content: unknown): CompanyPeoplePayload | null {
   );
   if (!textItem) return null;
   try {
-    return JSON.parse(textItem.text) as CompanyPeoplePayload;
+    return JSON.parse(textItem.text) as T;
   } catch {
     return null;
   }
@@ -43,7 +43,7 @@ export function CompanyPeopleBlock() {
           setError("The server could not fetch company contacts.");
           return;
         }
-        const parsed = extractPayload(result.content);
+        const parsed = extractPayload<CompanyPeoplePayload>(result.content);
         if (parsed) setPayload(parsed);
       };
       app.ontoolcancelled = () => setLoading(false);
@@ -63,7 +63,7 @@ export function CompanyPeopleBlock() {
         setError("The server could not fetch company contacts.");
         return;
       }
-      const parsed = extractPayload(result.content);
+      const parsed = extractPayload<CompanyPeoplePayload>(result.content);
       if (parsed) setPayload(parsed);
     } catch (err) {
       setLoading(false);
@@ -76,6 +76,7 @@ export function CompanyPeopleBlock() {
   }
 
   const people = payload?.people ?? [];
+  const withEmailCount = people.filter((p) => p.hasEmail).length;
   const showMoreCount = people.length > SHOW_MORE_COUNT ? people.length - SHOW_MORE_COUNT : 0;
   const shouldShowMoreLink = showMoreCount > 0;
   const visiblePeople = shouldShowMoreLink && showMore ? people.slice(0, SHOW_MORE_COUNT) : people;
@@ -106,16 +107,14 @@ export function CompanyPeopleBlock() {
             <div className="people-section-container">
               <div className="people-section-title-wrapper">
                 <div className="company-block-header">Contacts with email</div>
-                {payload && (
-                  <span className="people-revealed-count">
-                    {payload.revealedCount} of {people.filter((p) => p.hasEmail).length} emails revealed
-                  </span>
-                )}
+                <span className="people-revealed-count">
+                  {withEmailCount} of {people.length} have an email on file — click ✉ to reveal
+                </span>
               </div>
 
               <div className="people-items">
                 {visiblePeople.map((person) => (
-                  <PersonItem key={person.id} person={person} />
+                  <PersonItem key={person.id} person={person} app={app} />
                 ))}
               </div>
 
@@ -134,9 +133,31 @@ export function CompanyPeopleBlock() {
   );
 }
 
-function PersonItem({ person }: { person: CompanyPerson }) {
+type EmailState = { status: "idle" | "loading" | "revealed" | "error"; email?: string | null; error?: string };
+
+function PersonItem({ person, app }: { person: CompanyPerson; app: App | null }) {
+  const [emailState, setEmailState] = useState<EmailState>({ status: "idle" });
   const isLinkedIn = person.sourceName === "linkedin";
   const category = [person.designation, person.designationCategory].filter(Boolean).join(" · ");
+
+  const revealEmail = useCallback(async () => {
+    if (!app || emailState.status !== "idle") return;
+    setEmailState({ status: "loading" });
+    try {
+      const result = await app.callServerTool({
+        name: "get_contact_email",
+        arguments: { id: person.id, designation: person.designation },
+      });
+      if (result.isError) {
+        setEmailState({ status: "error", error: "Could not reveal email." });
+        return;
+      }
+      const parsed = extractPayload<ContactEmailPayload>(result.content);
+      setEmailState({ status: "revealed", email: parsed?.email ?? null });
+    } catch (err) {
+      setEmailState({ status: "error", error: err instanceof Error ? err.message : "Could not reveal email." });
+    }
+  }, [app, emailState.status, person.id, person.designation]);
 
   return (
     <div className={`person-item ${isLinkedIn ? "person-item-linkedin" : "person-item-default"}`}>
@@ -149,11 +170,25 @@ function PersonItem({ person }: { person: CompanyPerson }) {
       {category && <div className="person-item-designation">{category}</div>}
 
       <div className="person-item-contact-row">
-        {person.email ? (
-          <span className="person-item-contact">✉ {person.email}</span>
-        ) : person.hasEmail ? (
-          <span className="person-item-contact person-item-contact-muted">✉ Email on file (not revealed)</span>
-        ) : null}
+        {person.hasEmail && (
+          <button
+            type="button"
+            className="person-item-email-btn"
+            onClick={() => void revealEmail()}
+            disabled={emailState.status === "loading" || emailState.status === "revealed"}
+            title="Reveal email"
+          >
+            {emailState.status === "loading" ? (
+              "✉ Revealing…"
+            ) : emailState.status === "revealed" ? (
+              <span className="person-item-contact">✉ {emailState.email || "No email found"}</span>
+            ) : emailState.status === "error" ? (
+              <span className="person-item-contact-error">✉ {emailState.error}</span>
+            ) : (
+              "✉ Reveal email"
+            )}
+          </button>
+        )}
         {person.phone && <span className="person-item-contact">☎ {person.phone}</span>}
       </div>
     </div>

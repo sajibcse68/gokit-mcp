@@ -541,6 +541,26 @@ body {
   color: var(--clr-black);
 }
 
-.person-item-contact-muted {
-  color: var(--clr-gray);
+.person-item-email-btn {
+  display: flex;
+  align-items: center;
+  border: none;
+  background: var(--clr-white);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--clr-green-dark);
+  cursor: pointer;
+}
+
+.person-item-email-btn:hover:not(:disabled) {
+  background: var(--clr-green-light);
+}
+
+.person-item-email-btn:disabled {
+  cursor: default;
+}
+
+.person-item-contact-error {
+  color: var(--clr-red);
 }
